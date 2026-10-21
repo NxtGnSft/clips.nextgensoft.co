@@ -41,6 +41,7 @@ from ..clip_source_map import (
 )
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import get_config
+from ..media.source_limits import normalize_source_media
 from ..media_storage import MediaStorage
 from ..media.ffmpeg import cap_video_short_side, ffprobe_duration
 
@@ -171,6 +172,16 @@ class VideoService:
                 await run_in_thread(cleanup_downloaded_files, video_id, source_path=Path(video_path))
                 raise
         return video_path
+
+    @staticmethod
+    async def prepare_source(path: Path) -> Path:
+        """Scale a local source down to at most 1080p and 60 fps.
+
+        Plan-specific output (for example 720p) is applied later, when clips
+        are rendered. This only enforces the absolute ceiling.
+        """
+        prepared = await run_in_thread(normalize_source_media, path)
+        return prepared if isinstance(prepared, Path) else path
 
     @staticmethod
     async def get_video_title(url: str) -> str:
@@ -506,6 +517,12 @@ class VideoService:
                     f"Video is too long ({int(file_duration) // 60} min). "
                     f"Maximum allowed duration is {mins} minutes."
                 )
+
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+            if progress_callback:
+                await progress_callback(15, "Preparing video...", "processing")
+            video_path = await VideoService.prepare_source(video_path)
 
             # Step 2: Generate transcript
             if should_cancel and await should_cancel():

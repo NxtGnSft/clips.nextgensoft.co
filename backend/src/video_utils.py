@@ -28,6 +28,7 @@ from .media.ffmpeg import (
     run_ffmpeg_command,
     select_audio_stream_index,
 )
+from .media.source_limits import source_within_output_limits
 from .media.transcription import (
     get_video_transcript,
 )
@@ -293,8 +294,16 @@ def create_optimized_clip(
             f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
         )
 
-        # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
-        if not add_subtitles and not hook_title and keep_original and len(effective_keep_ranges) == 1 and extend_to_sentence:
+        # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding).
+        # Oversized or high-frame-rate sources fall through so the render caps them.
+        if (
+            not add_subtitles
+            and not hook_title
+            and keep_original
+            and len(effective_keep_ranges) == 1
+            and extend_to_sentence
+            and source_within_output_limits(video_path)
+        ):
             fast_path_start, fast_path_end = effective_keep_ranges[0]
             result = subprocess.run(
                 [

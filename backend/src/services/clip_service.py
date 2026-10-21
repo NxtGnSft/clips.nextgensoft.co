@@ -148,6 +148,7 @@ class ClipEditingMixin:
                 raise ValueError("Source video file no longer exists")
 
         try:
+            video_path = await self.video_service.prepare_source(video_path)
             segments = []
             for clip in clips:
                 source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
@@ -461,6 +462,7 @@ class ClipEditingMixin:
             raise ValueError("The source video is no longer available. Upload it again to edit captions.")
 
         try:
+            transcript_video_path = await self.video_service.prepare_source(transcript_video_path)
             settings = await self._load_task_source_settings(task_id)
             source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
             bounds = source_range_bounds(source_ranges)

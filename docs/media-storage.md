@@ -58,7 +58,7 @@ then call the authenticated completion endpoint. Object keys include a hash of t
 owning user ID. PostgreSQL records the owner, upload ID, object path and expected
 size before returning authorization. Each part URL signs its exact byte length;
 refresh requests can only renew parts within that recorded size. Completion
-verifies the assembled size and the 12 GB limit. The backend also
+verifies the assembled size and the configured upload limit (`MAX_VIDEO_UPLOAD_BYTES`, default 4 GB). The backend also
 checks ownership and object size before admitting a task. Failed browser uploads
 are aborted; bucket lifecycle rules catch uploads abandoned by closing a tab.
 Expired part URLs can be refreshed during the session's one-day lifetime without

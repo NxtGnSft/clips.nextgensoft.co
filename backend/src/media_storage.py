@@ -29,6 +29,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from .config import get_config
 from .editor_document import atomic_json
+from .media.upload_limits import upload_too_large_detail
 
 SIDECARS = (".source_map.json", ".transcript_cache.json")
 PART_BYTES = 64 * 1024 * 1024
@@ -158,8 +159,10 @@ class MediaStorage:
         metadata = self.client.head_object(Bucket=self.bucket, Key=self.parse(reference))
         size = metadata["ContentLength"]
         expected = metadata.get("Metadata", {}).get("expected-size")
-        if not 0 < size <= self.config.max_video_upload_bytes or (expected and size != int(expected)):
+        if size <= 0 or (expected and size != int(expected)):
             raise ValueError("Uploaded video has an invalid size")
+        if size > self.config.max_video_upload_bytes:
+            raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
         return reference
 
     def upload_file(self, path: Path, key: str, **extra) -> str:
@@ -343,8 +346,10 @@ class MediaStorage:
             raise
 
     def begin_upload(self, user_id: str, filename: str, size: int, content_type: str, *, authorization=None):
-        if not 0 < size <= self.config.max_video_upload_bytes:
+        if type(size) is not int or size <= 0:
             raise ValueError("Uploaded file is too large or empty")
+        if size > self.config.max_video_upload_bytes:
+            raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
         extension = self.video_extension(filename, content_type)
         relative = f"{owner_key(user_id)}/{uuid.uuid4().hex}/video{extension}"
         key = self.key("sources", relative)

@@ -107,12 +107,21 @@ def test_cache_sweep_removes_hidden_partial_downloads_after_a_crash(storage, tmp
     assert (directory / ".lease").exists()
 
 
+def test_begin_upload_rejects_files_over_the_configured_limit(storage):
+    storage.config.max_video_upload_bytes = 4_000_000_000
+    storage._client = Mock()
+    with pytest.raises(ValueError, match="4 GB"):
+        storage.begin_upload("owner", "video.mp4", 4_000_000_001, "video/mp4")
+    storage.client.create_multipart_upload.assert_not_called()
+
+
 def test_multipart_supports_files_larger_than_s3_single_put_limit(storage):
     client = Mock()
     client.create_multipart_upload.return_value = {"UploadId": "multipart-id"}
     client.generate_presigned_url.return_value = "https://private-media/part"
     storage._client = client
     size = 12_000_000_000
+    storage.config.max_video_upload_bytes = size
     authorization = storage.begin_upload("owner", "original.mp4", size, "video/mp4")
     assert len(authorization["parts"]) == (size + PART_BYTES - 1) // PART_BYTES
     assert client.generate_presigned_url.call_args.kwargs["Params"]["PartNumber"] == len(authorization["parts"])

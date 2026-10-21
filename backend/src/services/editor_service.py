@@ -303,6 +303,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 raise ValueError(
                     "The original source is unavailable. Restore the source file to edit this clip."
                 )
+            source = await service.video_service.prepare_source(source)
             directory.mkdir(parents=True, exist_ok=True)
             clean = directory / "clean.mp4"
             rendered = await run_in_thread(

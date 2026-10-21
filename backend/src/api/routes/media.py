@@ -18,6 +18,7 @@ from ...utils.async_helpers import run_in_thread
 from ...database import get_db
 from ...auth_headers import resolve_authenticated_user_id
 from ...services.billing_service import BillingService
+from ...media.upload_limits import upload_too_large_detail
 from ...font_registry import (
     FONTS_DIR,
     SUPPORTED_FONT_EXTENSIONS,
@@ -59,7 +60,8 @@ async def _write_upload_to_disk(
                 written += len(chunk)
                 if written > max_bytes:
                     raise HTTPException(
-                        status_code=413, detail="Uploaded file is too large"
+                        status_code=413,
+                        detail=upload_too_large_detail(max_bytes),
                     )
 
                 await destination.write(chunk)
@@ -291,6 +293,12 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         user_id = await _get_authenticated_user_id(request, db)
         config = get_config()
+        max_bytes = config.max_video_upload_bytes
+        raw_length = request.headers.get("content-length")
+        # Multipart framing is tiny next to the video, so a declared body well
+        # over the cap can be refused before the file is read.
+        if raw_length and raw_length.isdigit() and int(raw_length) > max_bytes + 1024 * 1024:
+            raise HTTPException(status_code=413, detail=upload_too_large_detail(max_bytes))
 
         # Get the form data
         form_data = await request.form()
@@ -312,7 +320,6 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
         video_path = uploads_dir / unique_filename
 
         # Save the uploaded file
-        max_bytes = get_config().max_video_upload_bytes
         await _write_upload_to_disk(upload, video_path, max_bytes)
 
         storage = MediaStorage()

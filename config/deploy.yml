@@ -1,0 +1,62 @@
+# Kamal config for clips.nextgensoft.co — NextGenSoft fork of SupoClip
+# (frontend). Backend lives in config/deploy.api.yml; deploy that first.
+service: clips-nextgensoft-co
+image:   chiliec/clips-nextgensoft-co
+
+servers:
+  web:
+    hosts: [5.223.75.86]
+    options:
+      memory: 512m
+
+ssh:
+  user: deploy
+  port: 666
+
+retain_containers: 2
+deploy_timeout: 60
+
+proxy:
+  hosts:
+    - clips.nextgensoft.co
+  app_port: 3107
+  ssl: true
+  healthcheck:
+    path: /api/auth/get-session
+  # SSE job progress (/api/tasks/:id/progress) must stream, not buffer.
+  # Video uploads go browser → R2 directly, so the default body limit is fine.
+  buffering:
+    responses: false
+  response_timeout: 300
+
+env:
+  clear:
+    NODE_ENV: production
+    BACKEND_INTERNAL_URL: http://clips-api:8000
+    NEXT_PUBLIC_SELF_HOST: "true"
+    NEXT_PUBLIC_APP_URL: https://clips.nextgensoft.co
+    BETTER_AUTH_URL: https://clips.nextgensoft.co
+    DISABLE_SIGN_UP: "true"
+  secret:
+    - DATABASE_URL
+    - BETTER_AUTH_SECRET
+    - BACKEND_AUTH_SECRET
+    - APP_SETTINGS_ENCRYPTION_KEY
+
+registry:
+  server: ghcr.io
+  username: chiliec
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+  remote: ssh://axveer-builder
+  local: false
+  context: frontend
+  dockerfile: frontend/Dockerfile
+  target: runner
+  args:
+    NEXT_PUBLIC_API_URL: http://clips-api:8000
+    NEXT_PUBLIC_APP_URL: https://clips.nextgensoft.co
+    NEXT_PUBLIC_SELF_HOST: "true"

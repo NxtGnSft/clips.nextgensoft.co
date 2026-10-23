@@ -1,0 +1,106 @@
+# Kamal config for the SupoClip backend (FastAPI web + arq worker) behind
+# clips.nextgensoft.co. No public route: the frontend reaches it on the kamal
+# network as http://clips-api:8000. Deploy with: kamal deploy -c config/deploy.api.yml
+service: clips-nextgensoft-co-api
+image:   chiliec/clips-nextgensoft-co-api
+
+servers:
+  web:
+    hosts: [5.223.75.86]
+    cmd: .venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000
+    proxy: false
+    options:
+      network-alias: clips-api
+      memory: 1g
+  worker:
+    hosts: [5.223.75.86]
+    cmd: .venv/bin/arq src.workers.tasks.WorkerSettings
+    options:
+      cpus: 2
+      memory: 3g
+    env:
+      clear:
+        SUPOCLIP_SERVICE: worker
+        WORKER_MAX_JOBS: "1"
+
+ssh:
+  user: deploy
+  port: 666
+
+retain_containers: 2
+
+volumes:
+  - "/srv/clips-nextgensoft-co/tmp:/app/uploads"
+  - "/srv/clips-nextgensoft-co/clips:/app/clips"
+
+env:
+  clear:
+    PYTHONUNBUFFERED: "1"
+    SUPOCLIP_SERVICE: backend
+    TEMP_DIR: /app/uploads
+    SELF_HOST: "true"
+    NEXT_PUBLIC_APP_URL: https://clips.nextgensoft.co
+    CORS_ORIGINS: https://clips.nextgensoft.co
+    REDIS_HOST: clips-nextgensoft-co-api-redis
+    REDIS_PORT: "6379"
+    TRANSCRIPTION_PROVIDER: assemblyai
+    LLM: anthropic:claude-sonnet-5
+    ANTHROPIC_BASE_URL: https://gateway.nextgensoft.co
+    MEDIA_STORAGE: s3
+    MEDIA_S3_BUCKET: clips-nextgensoft-co
+    MEDIA_S3_REGION: auto
+    MEDIA_S3_PREFIX: media
+    MAX_VIDEO_UPLOAD_BYTES: "4000000000"
+    MAX_VIDEO_DURATION: "3600"
+    PRO_YOUTUBE_MAX_VIDEO_DURATION: "3600"
+    SCALE_YOUTUBE_MAX_VIDEO_DURATION: "3600"
+    YOUTUBE_DOWNLOAD_PROVIDER: yt_dlp
+    YOUTUBE_MAX_HEIGHT: "1080"
+    YOUTUBE_DOWNLOAD_MAX_BYTES: "2000000000"
+    YOUTUBE_SOURCE_CACHE: "off"
+    YOUTUBE_POT_PROVIDER_URL: http://clips-nextgensoft-co-api-bgutil:4416
+    SOCIAL_PUBLISHING_ACCESS: "off"
+  secret:
+    - DATABASE_URL:BACKEND_DATABASE_URL
+    - BACKEND_AUTH_SECRET
+    - APP_SETTINGS_ENCRYPTION_KEY
+    - REDIS_PASSWORD
+    - ASSEMBLY_AI_API_KEY
+    - ANTHROPIC_API_KEY
+    - MEDIA_S3_ENDPOINT
+    - MEDIA_S3_ACCESS_KEY_ID
+    - MEDIA_S3_SECRET_ACCESS_KEY
+
+accessories:
+  redis:
+    image: redis:7-alpine
+    host: 5.223.75.86
+    cmd: sh -c 'exec redis-server --requirepass "$REDIS_PASSWORD" --maxmemory 96mb --maxmemory-policy noeviction'
+    options:
+      memory: 128m
+    env:
+      secret:
+        - REDIS_PASSWORD
+    directories:
+      - redis:/data
+  bgutil:
+    image: brainicism/bgutil-ytdlp-pot-provider:2.0.2
+    host: 5.223.75.86
+    options:
+      memory: 256m
+      init: true
+
+registry:
+  server: ghcr.io
+  username: chiliec
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+  remote: ssh://axveer-builder
+  local: false
+  context: backend
+  dockerfile: backend/Dockerfile
+  args:
+    BACKEND_CPU_ONLY: "true"

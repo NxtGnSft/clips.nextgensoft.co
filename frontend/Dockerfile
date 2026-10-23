@@ -128,6 +128,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Copy Prisma generated client and schema
 COPY --from=builder --chown=nextjs:nodejs /app/src/generated/prisma ./src/generated/prisma
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/scripts/create-user.mjs ./scripts/create-user.mjs
 
 # The production Compose service bind-mounts /app/src for local-development
 # compatibility. Keep the native Prisma engine outside that mount and point

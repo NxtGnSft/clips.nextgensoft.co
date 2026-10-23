@@ -2,6 +2,7 @@
 Worker tasks - background jobs processed by arq workers.
 """
 
+import os
 import logging
 from typing import Dict, Any, Optional
 import json
@@ -228,7 +229,7 @@ class WorkerSettings:
     job_timeout = 10800  # 3 hour timeout for video processing
 
     # Worker pool settings
-    max_jobs = 4  # Process up to 4 jobs simultaneously
+    max_jobs = int(os.getenv("WORKER_MAX_JOBS", "4"))  # NextGenSoft fork: 1 on shared axveer
     cron_jobs = [
         cron(cleanup_media, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}, run_at_startup=True),
         cron(sweep_orphaned_media, hour={0, 6, 12, 18}, minute=15),
